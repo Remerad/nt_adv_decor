@@ -1,60 +1,81 @@
-import json
-from pprint import pprint
-import wikipediaapi
-import time
-from progress.bar import Bar
-import os
-import hashlib
-countries = []
+import datetime
+
+mn_log_file_name = 'log_file.txt'
 
 
-class WikiIterator:
-    def __iter__(self):
-        return self
+def make_trace_in_definite_log_file(log_file_name):
 
-    def __init__(self, countries_list):
-        self.countries_list = countries_list
+    def make_trace(func):
 
-    def __next__(self):
-        if self.countries_list:
-            country = self.countries_list.pop(0)
-            page_py = wiki_wiki.page(country)
-            if page_py.exists():
-                #print(page_py.fullurl)
-                return {country: page_py.fullurl}
-        else:
-            raise StopIteration
+        def log_function_called(*args, **kwargs):
+            result = func(*args, **kwargs)
+            temp_str = (f'{datetime.datetime.now()} Вызвана функция {func.__name__} '
+                  f'с аргументами {args} {kwargs}, которая вернула значение {result}')
+            print(temp_str)
+            with open(log_file_name, 'w') as lf:
+                lf.write(temp_str)
+
+        return log_function_called
+
+    return make_trace
 
 
-def file_str_generator(filepath):
-    with open(filepath, "r") as read_file:
-        for line in read_file:
-            hash_object = hashlib.md5(line.strip().encode())
-            yield hash_object.hexdigest()
+class CookBook:
+    def __init__(self):
+        self.cook_book = {}
+
+    @make_trace_in_definite_log_file(mn_log_file_name)
+    #@make_trace
+    def read_cook_book_file(self, cook_book_file_name):
+        temp_dish_name = ""
+        temp_dish_components = []
+        with open(cook_book_file_name, 'r', encoding='utf-8') as f:
+            my_lines = list(f)
+            for i in my_lines:
+                temp_str = i.strip()
+                if not temp_str.isdigit():
+                    temp_list = temp_str.split(" | ")
+                    if len(temp_list) == 1 and temp_list[0] != '':
+                        temp_dish_name = temp_list[0]
+                        temp_dish_components = []
+                    elif len(temp_list) > 1:
+                        temp_dish_components.append({'ingredient_name': temp_list[0],
+                                                     'quantity': int(temp_list[1]),
+                                                     'measure': temp_list[2]})
+                    elif len(temp_list) == 1 and temp_list[0] == '':
+                        self.cook_book.update({temp_dish_name: temp_dish_components})
+            self.cook_book.update({temp_dish_name: temp_dish_components})
+        return 0
+
+
+    def get_shop_list_by_dishes(self, dishes, person_count):
+        dishes_components_list = {}
+        for dish in dishes:
+            if dish in self.cook_book:
+                for component in self.cook_book[dish]:
+                    if component['ingredient_name'] not in dishes_components_list:
+                        dishes_components_list.update({component['ingredient_name']:
+                                                           {'measure': component['measure'],
+                                                            'quantity': component['quantity'] * person_count}})
+                    else:
+                        q = dishes_components_list.get(component['ingredient_name'])['quantity'] \
+                            + component['quantity'] * person_count
+                        dishes_components_list.update({component['ingredient_name']:
+                                                           {'measure': component['measure'],
+                                                            'quantity': q}})
+        return dishes_components_list
 
 
 if __name__ == '__main__':
-    with open("countries.json", "r") as read_file:
-        data = json.load(read_file)
-    for i in data:
-        countries.append(i["name"]["common"])
-    progress_bar = Bar('Составление списка стран и ссылок на статьи в Википедии: ', max=len(countries))
-    wiki_wiki = wikipediaapi.Wikipedia('en')
+    print(f'Текущий путь к файлу логов: {mn_log_file_name}')
+    x = input('Нажмите Enter, если Вас устраивает этот путь, либо введите новый:')
+    if x != '':
+        print(x)
+        mn_log_file_name = x
 
-    iter = WikiIterator(countries)
-    counry_and_url = {}
-    for i in iter:
-        counry_and_url.update(i)
-        progress_bar.next()
-    progress_bar.finish()
-    #pprint(counry_and_url)
-    with open('counry_and_url.json', 'w') as f:
-        json.dump(counry_and_url, f, indent=4)
+    CB = CookBook()
+    CB.read_cook_book_file(cook_book_file_name='recipes.txt')
 
-    fsg = file_str_generator('counry_and_url.json')
-    for i in fsg:
-        print(i)
-    os.system('pause')
-
-
-
+    shop_list = CB.get_shop_list_by_dishes(["Омлет", "Фахитос"], 4)
+    for i in shop_list:
+        print(f"{i}, {shop_list[i]['quantity']} {shop_list[i]['measure']}")
