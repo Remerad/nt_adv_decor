@@ -14,6 +14,7 @@ def make_trace_in_definite_log_file(log_file_name):
             print(temp_str)
             with open(log_file_name, 'w') as lf:
                 lf.write(temp_str)
+            return result
 
         return log_function_called
 
